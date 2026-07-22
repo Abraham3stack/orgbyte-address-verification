@@ -60,18 +60,37 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
     await page.getByRole('button', { name: 'Initiate Verification' }).click()
   }
 
+  const startNewFromForm = async () => {
+    const formRegion = page.getByRole('region', { name: 'Start Verification' })
+    await expect(formRegion.getByRole('button', { name: 'Start New Verification' })).toBeVisible()
+    await formRegion.getByRole('button', { name: 'Start New Verification' }).click()
+    await expect(formRegion.getByRole('button', { name: 'Initiate Verification' })).toBeVisible()
+  }
+
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/')
 
   const desktopLayoutEvidence = await page.evaluate(() => {
     const leftRect = document.querySelector('[aria-label="Start Verification"]')?.getBoundingClientRect()
     const rightRect = document.querySelector('[aria-label="Verification Result"]')?.getBoundingClientRect()
-    if (!leftRect || !rightRect) {
-      return { twoColumn: false }
+    const apiBadgeRect = Array.from(document.querySelectorAll('span'))
+      .find((element) => element.textContent?.trim().startsWith('API:'))
+      ?.getBoundingClientRect()
+    const envBadgeRect = Array.from(document.querySelectorAll('span'))
+      .find((element) => element.textContent?.trim() === 'Environment: Local Mock')
+      ?.getBoundingClientRect()
+
+    if (!leftRect || !rightRect || !apiBadgeRect || !envBadgeRect) {
+      return { twoColumn: false, desktopBadgesInline: false }
     }
-    return { twoColumn: Math.abs(leftRect.top - rightRect.top) < 40 && rightRect.left > leftRect.left }
+
+    return {
+      twoColumn: Math.abs(leftRect.top - rightRect.top) < 40 && rightRect.left > leftRect.left,
+      desktopBadgesInline: Math.abs(apiBadgeRect.top - envBadgeRect.top) < 4,
+    }
   })
   expect(desktopLayoutEvidence.twoColumn).toBe(true)
+  expect(desktopLayoutEvidence.desktopBadgesInline).toBe(true)
 
   await expect(page.getByText('Start a verification request to track progress.').first()).toBeVisible()
   await expect(page.getByText('Final result will appear when verification completes.')).toBeVisible()
@@ -119,7 +138,13 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
   await page.getByRole('button', { name: 'Retry Request' }).click()
   await expect(page.getByText('PENDING', { exact: true })).toBeVisible({ timeout: 12_000 })
   await expect(page.getByText('Request Failed')).not.toBeVisible()
-  await page.getByRole('button', { name: 'Start New Verification' }).first().click()
+  await expect(
+    page
+      .locator('span')
+      .filter({ hasText: /^(COMPLETED|FAILED)$/ })
+      .first(),
+  ).toBeVisible({ timeout: 12_000 })
+  await startNewFromForm()
 
   await fillAddress({
     addressLine1: '12 Marina Road',
@@ -154,7 +179,7 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
   await page.getByRole('button', { name: 'Clear Inspector' }).click()
   await expect(page.getByText('No API calls recorded yet.')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Start New Verification' }).first().click()
+  await startNewFromForm()
   await expect(page.getByLabel('Address Line 1')).toHaveValue('')
   await expect(page.getByLabel('Address Line 1')).not.toHaveAttribute('readonly', '')
 
@@ -168,7 +193,7 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
   await startVerification()
   await expect(page.getByText('UNVERIFIED', { exact: true })).toBeVisible({ timeout: 12_000 })
 
-  await page.getByRole('button', { name: 'Start New Verification' }).first().click()
+  await startNewFromForm()
   await fillAddress({
     addressLine1: '410 Test Lane',
     city: 'Sydney',

@@ -465,9 +465,9 @@ function Dashboard() {
             <h1 className="text-xl font-bold leading-tight md:text-2xl">Address Verification Operations</h1>
             <p className="text-sm text-slate-600">Mock Verification Workflow</p>
           </div>
-          <div className="flex w-full min-w-0 flex-wrap items-start gap-2 text-xs md:w-auto md:flex-col md:items-end md:gap-1 md:text-sm">
+          <div className="flex w-full min-w-0 flex-wrap items-start gap-2 text-xs md:w-auto md:flex-nowrap md:items-center md:justify-end md:gap-2 md:text-sm">
             <span
-              className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium"
+              className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium md:max-w-[32rem]"
               title={`API: ${API_BASE_URL}`}
             >
               API: {API_BASE_URL}
