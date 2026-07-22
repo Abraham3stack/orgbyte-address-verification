@@ -292,6 +292,8 @@ Deterministic result field rules:
   - `countrySupported = countryCode in {US,CA,GB,AU,NG}`
 - `issues`:
   - add `{ code: "COUNTRY_UNSUPPORTED", message: "Country is accepted but not fully supported in mock checks", severity: "warning" }` when `countrySupported = false`
+  - add `{ code: "PARTIAL_VERIFICATION", message: "Address verification completed with partial confidence", severity: "warning" }` when `verdict = PARTIALLY_VERIFIED`
+  - add `{ code: "ADDRESS_UNVERIFIED", message: "Address verification completed with unresolved verification signals", severity: "error" }` when `verdict = UNVERIFIED`
 
 ## 7) Response Envelope Standard
 
@@ -338,7 +340,7 @@ Envelope rules:
 - Result after completed with partial verdict => `200` (`verdict=PARTIALLY_VERIFIED`)
 - Result after completed with unverified verdict => `200` (`verdict=UNVERIFIED`)
 
-## 10) Polling, Retry, Backoff, and Timeout Expectations
+## 10) Polling and Retry Expectations
 
 Client polling expectations:
 
@@ -349,21 +351,9 @@ Client polling expectations:
 
 Retry expectations:
 
-- Retry only transient request failures (`5xx` or network errors).
-- Do not retry `4xx` validation/not-found/conflict/failed-result responses.
-
-Backoff expectations for transient failures:
-
-- Attempt 1 retry delay: 1000ms
-- Attempt 2 retry delay: 2000ms
-- Attempt 3 retry delay: 4000ms
-- Max transient retries: 3
-
-Timeout expectations:
-
-- Client per-request timeout: 5000ms
-- Overall status polling timeout budget: 30000ms from `createdAt`
-- On timeout budget exceeded before terminal state, client should surface timeout error and allow manual retry.
+- Automatic retries are disabled for all requests.
+- On request failure, the UI surfaces a retry action to manually refetch the failed request.
+- Validation/not-found/conflict responses are surfaced directly and are not auto-retried.
 
 ## 11) Assumptions and Trade-offs
 

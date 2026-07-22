@@ -117,10 +117,10 @@ Exact labels:
 
 API base URL source rule:
 
-- The API badge value must come from frontend environment configuration.
-- Use `VITE_API_BASE_URL` as the primary source.
-- If `VITE_API_BASE_URL` is undefined at runtime, fall back to `http://localhost:4000`.
-- `http://localhost:4000` is a development fallback example only and must not be hardcoded as the default displayed value when `VITE_API_BASE_URL` is present.
+- The API badge value reflects the runtime API base used by the frontend.
+- If `VITE_API_BASE_URL` is provided, use it.
+- If `VITE_API_BASE_URL` is not provided in development, use `window.location.origin` with the Vite `/verify` proxy.
+- For non-development runtime, `VITE_API_BASE_URL` must be provided.
 
 Navigation constraints:
 
@@ -319,7 +319,7 @@ Empty states:
 Loading states:
 
 - Initiate loading: disable submit, show Initiating...
-- Status loading: retain previous status and show subtle loading indicator in panel header
+- Status loading: retain previous status while background polling continues.
 - Result loading: skeleton placeholders for verdict, confidence, checks, and issues
 
 Form and action behavior during active requests:
