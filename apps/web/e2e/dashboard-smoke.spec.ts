@@ -1,8 +1,11 @@
 import { expect, test } from '@playwright/test'
 
+test.setTimeout(90_000)
+
 test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', async ({ page }) => {
   const unexpectedApiStatuses: Array<{ url: string; status: number }> = []
   const consoleErrors: string[] = []
+  const networkFailures: string[] = []
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
@@ -18,6 +21,10 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
         unexpectedApiStatuses.push({ url, status })
       }
     }
+  })
+
+  page.on('requestfailed', (request) => {
+    networkFailures.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`)
   })
 
   await page.addInitScript(() => {
@@ -74,6 +81,46 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
   await expect(page.getByText('City is required')).toBeVisible()
   await expect(page.getByText('Country Code is required')).toBeVisible()
 
+  let injectedStatusFailure = false
+  await page.route('**/verify/status/**', async (route) => {
+    if (injectedStatusFailure) {
+      await route.continue()
+      return
+    }
+
+    injectedStatusFailure = true
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        data: null,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An unexpected error occurred',
+        },
+        meta: {
+          requestId: 'req_smoke',
+          timestamp: '2026-07-22T00:00:00.000Z',
+        },
+      }),
+    })
+  })
+
+  await fillAddress({
+    addressLine1: '500 Retry Road',
+    city: 'Lagos',
+    countryCode: 'ng',
+  })
+  await startVerification()
+  await expect(page.getByText('Request Failed')).toBeVisible({ timeout: 12_000 })
+  await page.unroute('**/verify/status/**')
+
+  await page.getByRole('button', { name: 'Retry Request' }).click()
+  await expect(page.getByText('PENDING', { exact: true })).toBeVisible({ timeout: 12_000 })
+  await expect(page.getByText('Request Failed')).not.toBeVisible()
+  await page.getByRole('button', { name: 'Start New Verification' }).first().click()
+
   await fillAddress({
     addressLine1: '12 Marina Road',
     city: 'Lagos',
@@ -82,26 +129,8 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
   await startVerification()
   await expect(page.getByText('Session ID')).toBeVisible()
   await expect(page.getByText('PENDING', { exact: true })).toBeVisible()
-
-  const sessionLine = await page.locator('text=Session ID').first().locator('xpath=..').innerText()
-  const sessionIdMatch = sessionLine.match(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)
-  const sessionId = sessionIdMatch ? sessionIdMatch[0] : ''
-  expect(sessionId).not.toBe('')
-
-  const processingProbe = await page.evaluate(async (activeSessionId) => {
-    await new Promise((resolve) => setTimeout(resolve, 2800))
-    const response = await fetch(`/verify/status/${activeSessionId}`)
-    const payload = await response.json()
-    return {
-      httpStatus: response.status,
-      state: payload?.data?.status,
-      progressPercent: payload?.data?.progressPercent,
-    }
-  }, sessionId)
-
-  expect(processingProbe.httpStatus).toBe(200)
-  expect(processingProbe.state).toBe('PROCESSING')
-  expect(processingProbe.progressPercent).toBe(65)
+  await expect(page.getByText('PROCESSING', { exact: true })).toBeVisible({ timeout: 12_000 })
+  await expect(page.getByText('65%')).toBeVisible({ timeout: 12_000 })
 
   await expect(page.locator('span').filter({ hasText: 'COMPLETED' }).first()).toBeVisible({
     timeout: 12_000,
@@ -189,9 +218,18 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
 
   expect(layoutEvidence.mobileStacked).toBe(true)
 
-  expect(unexpectedApiStatuses).toEqual([])
+  expect(injectedStatusFailure).toBe(true)
+  const unexpectedStatusesExcludingInjectedFailure = unexpectedApiStatuses.filter(
+    (entry) => !(entry.status === 500 && entry.url.includes('/verify/status/')),
+  )
+  expect(unexpectedStatusesExcludingInjectedFailure).toEqual([])
   const nonExpectedConsoleErrors = consoleErrors.filter(
-    (entry) => !entry.includes('status of 409') && !entry.includes('Conflict'),
+    (entry) =>
+      !entry.includes('status of 409') &&
+      !entry.includes('Conflict') &&
+      !entry.includes('status of 500') &&
+      !entry.includes('Internal Server Error'),
   )
   expect(nonExpectedConsoleErrors).toEqual([])
+  expect(networkFailures).toEqual([])
 })

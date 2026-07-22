@@ -380,4 +380,174 @@ describe('Address verification dashboard', () => {
       expect(screen.getByText('Copy failed')).toBeInTheDocument()
     })
   })
+
+  it('clears form values and validation errors on reset', async () => {
+    render(<App />)
+
+    fireEvent.change(screen.getByLabelText('Address Line 1'), { target: { value: 'Temp Address' } })
+    clickInitiate()
+
+    expect(await screen.findByText('City is required')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Form' }))
+
+    await waitFor(() => {
+      const addressLine1 = screen.getByLabelText('Address Line 1') as HTMLInputElement
+      expect(addressLine1.value).toBe('')
+      expect(screen.queryByText('City is required')).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows request failure and recovers with retry', async () => {
+    let statusCalls = 0
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/verify/initiate') && init?.method === 'POST') {
+        return Promise.resolve(
+          toJsonResponse(
+            202,
+            successEnvelope({
+              sessionId: '55555555-5555-4555-8555-555555555555',
+              status: 'PENDING',
+              createdAt: '2026-07-22T10:00:00.000Z',
+              pollAfterMs: 1500,
+            }),
+          ),
+        )
+      }
+
+      if (url.includes('/verify/status/')) {
+        statusCalls += 1
+        if (statusCalls === 1) {
+          return Promise.resolve(toJsonResponse(500, errorEnvelope('INTERNAL_SERVER_ERROR', 'boom')))
+        }
+
+        return Promise.resolve(
+          toJsonResponse(
+            200,
+            successEnvelope({
+              sessionId: '55555555-5555-4555-8555-555555555555',
+              status: 'PENDING',
+              createdAt: '2026-07-22T10:00:00.000Z',
+              updatedAt: '2026-07-22T10:00:01.000Z',
+              isTerminal: false,
+              progressPercent: 25,
+              nextPollAfterMs: 1500,
+            }),
+          ),
+        )
+      }
+
+      return Promise.resolve(toJsonResponse(409, errorEnvelope('RESULT_NOT_READY', 'Verification is still in progress')))
+    })
+
+    render(<App />)
+    fillValidForm()
+    clickInitiate()
+
+    await waitFor(() => {
+      expect(screen.getByText('Request Failed')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Retry Request' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Request' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('PENDING')).toBeInTheDocument()
+      expect(screen.queryByText('Request Failed')).not.toBeInTheDocument()
+    })
+  })
+
+  it('ignores late result response after starting a new verification', async () => {
+    const lateResult = {
+      resolve: null as null | ((value: Response) => void),
+    }
+
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+
+      if (url.endsWith('/verify/initiate') && init?.method === 'POST') {
+        return Promise.resolve(
+          toJsonResponse(
+            202,
+            successEnvelope({
+              sessionId: '66666666-6666-4666-8666-666666666666',
+              status: 'PENDING',
+              createdAt: '2026-07-22T10:00:00.000Z',
+              pollAfterMs: 1500,
+            }),
+          ),
+        )
+      }
+
+      if (url.includes('/verify/status/')) {
+        return Promise.resolve(
+          toJsonResponse(
+            200,
+            successEnvelope({
+              sessionId: '66666666-6666-4666-8666-666666666666',
+              status: 'COMPLETED',
+              createdAt: '2026-07-22T10:00:00.000Z',
+              updatedAt: '2026-07-22T10:00:08.000Z',
+              isTerminal: true,
+              progressPercent: 100,
+              nextPollAfterMs: null,
+            }),
+          ),
+        )
+      }
+
+      if (url.includes('/verify/result/')) {
+        return new Promise<Response>((resolve) => {
+          lateResult.resolve = resolve
+        })
+      }
+
+      return Promise.resolve(toJsonResponse(500, errorEnvelope('INTERNAL_SERVER_ERROR', 'boom')))
+    })
+
+    render(<App />)
+    fillValidForm()
+    clickInitiate()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Start New Verification' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start New Verification' }))
+
+    expect(lateResult.resolve).not.toBeNull()
+    lateResult.resolve?.(
+        toJsonResponse(
+          200,
+          successEnvelope({
+            sessionId: '66666666-6666-4666-8666-666666666666',
+            status: 'COMPLETED',
+            verdict: 'VERIFIED',
+            completedAt: '2026-07-22T10:00:08.000Z',
+            normalizedAddress: {
+              addressLine1: '12 Marina Road',
+              city: 'Lagos',
+              countryCode: 'NG',
+              formattedAddress: '12 Marina Road, Lagos, NG',
+            },
+            confidenceScore: 0.9,
+            checks: {
+              addressLine1Valid: true,
+              postalCodeValid: true,
+              cityStateMatch: true,
+              countrySupported: true,
+            },
+            issues: [],
+          }),
+        ),
+      )
+
+    await waitFor(() => {
+      expect(screen.queryByText('VERIFIED')).not.toBeInTheDocument()
+      const addressLine1 = screen.getByLabelText('Address Line 1') as HTMLInputElement
+      expect(addressLine1.value).toBe('')
+      expect(addressLine1).not.toHaveAttribute('readonly')
+    })
+  })
 })
