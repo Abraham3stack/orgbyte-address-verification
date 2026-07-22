@@ -4,8 +4,8 @@ import { spawnSync } from 'node:child_process';
 const openapiPath = 'docs/openapi.yaml';
 
 if (!existsSync(openapiPath)) {
-  console.log('Skipped: docs/openapi.yaml does not exist yet (planned for Phase 3).');
-  process.exit(0);
+  console.error('OpenAPI validation failed: docs/openapi.yaml is required from Phase 3 onward.');
+  process.exit(1);
 }
 
 const result = spawnSync('npx', ['swagger-cli', 'validate', openapiPath], {
