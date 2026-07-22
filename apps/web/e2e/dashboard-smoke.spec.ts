@@ -205,18 +205,89 @@ test('dashboard smoke: lifecycle, inspector, copy, and responsive layouts', asyn
   expect(resultNotReadyProbe.resultCode).toBe('RESULT_NOT_READY')
 
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
+  await expect(page.getByRole('heading', { name: 'Address Verification Operations' })).toBeVisible()
+  await expect(page.getByText('Mock Verification Workflow')).toBeVisible()
+  await expect(page.getByText(/^API:/)).toBeVisible()
+  await expect(page.getByText('Environment: Local Mock')).toBeVisible()
   await expect(page.getByRole('button', { name: /Show API Inspector|Hide API Inspector/ })).toBeVisible()
 
   const layoutEvidence = await page.evaluate(() => {
+    const getByText = (text: string): Element | undefined =>
+      Array.from(document.querySelectorAll('*')).find((element) => element.textContent?.trim() === text)
+    const getByStartsWith = (prefix: string): Element | undefined =>
+      Array.from(document.querySelectorAll('*')).find((element) =>
+        element.textContent?.trim().startsWith(prefix),
+      )
+
+    const titleRect = getByText('Address Verification Operations')?.getBoundingClientRect()
+    const subtitleRect = getByText('Mock Verification Workflow')?.getBoundingClientRect()
+    const apiBadgeRect = getByStartsWith('API:')?.getBoundingClientRect()
+    const envBadgeRect = getByText('Environment: Local Mock')?.getBoundingClientRect()
+    const headerRect = document.querySelector('header')?.getBoundingClientRect()
+    const firstCardRect = document.querySelector('[aria-label="Start Verification"]')?.getBoundingClientRect()
     const progressRect = document.querySelector('[aria-label="Verification Progress"]')?.getBoundingClientRect()
     const resultRect = document.querySelector('[aria-label="Verification Result"]')?.getBoundingClientRect()
-    if (!progressRect || !resultRect) {
-      return { mobileStacked: false }
+    if (
+      !progressRect ||
+      !resultRect ||
+      !titleRect ||
+      !subtitleRect ||
+      !apiBadgeRect ||
+      !envBadgeRect ||
+      !headerRect ||
+      !firstCardRect
+    ) {
+      return {
+        mobileStacked: false,
+        titleFullyVisible: false,
+        subtitleFullyVisible: false,
+        apiBadgeVisible: false,
+        envBadgeVisible: false,
+        badgesBelowTitle: false,
+        headerToCardSpacingPx: 0,
+        noHorizontalOverflow: false,
+      }
     }
-    return { mobileStacked: resultRect.top > progressRect.top }
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    return {
+      mobileStacked: resultRect.top > progressRect.top,
+      titleFullyVisible:
+        titleRect.top >= 0 &&
+        titleRect.left >= 0 &&
+        titleRect.right <= viewportWidth &&
+        titleRect.bottom <= viewportHeight,
+      subtitleFullyVisible:
+        subtitleRect.top >= 0 &&
+        subtitleRect.left >= 0 &&
+        subtitleRect.right <= viewportWidth &&
+        subtitleRect.bottom <= viewportHeight,
+      apiBadgeVisible:
+        apiBadgeRect.top >= 0 &&
+        apiBadgeRect.left >= 0 &&
+        apiBadgeRect.right <= viewportWidth &&
+        apiBadgeRect.bottom <= viewportHeight,
+      envBadgeVisible:
+        envBadgeRect.top >= 0 &&
+        envBadgeRect.left >= 0 &&
+        envBadgeRect.right <= viewportWidth &&
+        envBadgeRect.bottom <= viewportHeight,
+      badgesBelowTitle: apiBadgeRect.top >= titleRect.bottom && envBadgeRect.top >= titleRect.bottom,
+      headerToCardSpacingPx: firstCardRect.top - headerRect.bottom,
+      noHorizontalOverflow: document.documentElement.scrollWidth <= viewportWidth,
+    }
   })
 
   expect(layoutEvidence.mobileStacked).toBe(true)
+  expect(layoutEvidence.titleFullyVisible).toBe(true)
+  expect(layoutEvidence.subtitleFullyVisible).toBe(true)
+  expect(layoutEvidence.apiBadgeVisible).toBe(true)
+  expect(layoutEvidence.envBadgeVisible).toBe(true)
+  expect(layoutEvidence.badgesBelowTitle).toBe(true)
+  expect(layoutEvidence.headerToCardSpacingPx).toBeGreaterThanOrEqual(12)
+  expect(layoutEvidence.noHorizontalOverflow).toBe(true)
 
   expect(injectedStatusFailure).toBe(true)
   const unexpectedStatusesExcludingInjectedFailure = unexpectedApiStatuses.filter(

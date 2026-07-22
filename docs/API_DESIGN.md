@@ -52,6 +52,7 @@ Verdict is separate from session processing state and is present only in complet
 - `UNVERIFIED`
 
 Rules:
+
 - A negative verification outcome (`PARTIALLY_VERIFIED` or `UNVERIFIED`) still uses session state `COMPLETED`.
 - `FAILED` is reserved for simulated processing failure only (no final verification verdict is produced).
 
@@ -123,10 +124,12 @@ Rule:
 - Compute `verdictKey = asciiSum % 3`.
 
 Deterministic processing outcome:
+
 - `processingFailureKey` in `{0,1}` => processing-failure session (eventual state `FAILED`)
 - otherwise => non-failure session (eventual state `COMPLETED`)
 
 Deterministic verification verdict (applies only when state is `COMPLETED`):
+
 - `verdictKey = 0` => `VERIFIED`
 - `verdictKey = 1` => `PARTIALLY_VERIFIED`
 - `verdictKey = 2` => `UNVERIFIED`

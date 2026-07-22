@@ -460,16 +460,19 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-[var(--color-bg-canvas)] text-[var(--color-text-primary)]">
       <header className="sticky top-0 z-20 border-b border-[var(--color-border-default)] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-[1280px] items-center justify-between gap-3 px-4 md:px-6 lg:px-8">
-          <div>
+        <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 px-4 py-3 md:h-16 md:flex-row md:items-center md:justify-between md:gap-3 md:px-6 md:py-0 lg:px-8">
+          <div className="w-full min-w-0">
             <h1 className="text-xl font-bold leading-tight md:text-2xl">Address Verification Operations</h1>
             <p className="text-sm text-slate-600">Mock Verification Workflow</p>
           </div>
-          <div className="flex flex-col items-end gap-1 text-xs md:text-sm">
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium">
+          <div className="flex w-full min-w-0 flex-wrap items-start gap-2 text-xs md:w-auto md:flex-col md:items-end md:gap-1 md:text-sm">
+            <span
+              className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium"
+              title={`API: ${API_BASE_URL}`}
+            >
               API: {API_BASE_URL}
             </span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium">
+            <span className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium">
               Environment: Local Mock
             </span>
           </div>

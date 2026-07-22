@@ -24,6 +24,8 @@ temp/
 # Test and build outputs
 .nyc_output/
 *.tsbuildinfo
+apps/web/test-results/
+apps/web/playwright-report/
 
 # Environment and secrets
 .env.local
