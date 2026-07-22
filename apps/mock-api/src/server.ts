@@ -1,9 +1,7 @@
-import express from 'express';
+import { createApp } from './app.js';
 
-const app = express();
+const app = createApp();
 const port = Number(process.env.PORT ?? 4000);
-
-app.use(express.json());
 
 app.listen(port, () => {
   console.log(`Mock API listening on port ${port}`);
