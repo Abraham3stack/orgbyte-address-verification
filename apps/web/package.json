@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run --passWithNoTests",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "smoke": "playwright test -c playwright.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.1.12",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",

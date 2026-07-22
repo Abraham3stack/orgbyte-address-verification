@@ -8,7 +8,14 @@ import type {
   StatusResponseData,
 } from './types'
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000'
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? ''
+const runtimeOrigin = typeof window === 'undefined' ? '' : window.location.origin
+
+if (!import.meta.env.DEV && configuredBaseUrl.length === 0) {
+  throw new Error('VITE_API_BASE_URL must be set for production builds.')
+}
+
+export const API_BASE_URL = configuredBaseUrl || runtimeOrigin
 
 export class ApiRequestError extends Error {
   status: number

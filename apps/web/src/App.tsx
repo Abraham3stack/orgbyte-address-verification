@@ -283,11 +283,14 @@ function Dashboard() {
   }
 
   const copyInspectorJson = async () => {
+    const emptyInspectorMessage = {
+      message: 'API request and response payloads will appear here.',
+    }
     const copySource =
       inspectorTab === 'request'
-        ? lastRequest
+        ? (lastRequest ?? emptyInspectorMessage)
         : inspectorTab === 'response'
-          ? lastResponse
+          ? (lastResponse ?? emptyInspectorMessage)
           : inspectorCalls
     const copyValue = jsonText(copySource)
 

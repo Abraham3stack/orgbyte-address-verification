@@ -340,4 +340,44 @@ describe('Address verification dashboard', () => {
 
     expect(fetch).toHaveBeenCalled()
   })
+
+  it('copies expected JSON and shows success feedback', async () => {
+    const clipboardWrite = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: clipboardWrite,
+      },
+    })
+
+    render(<App />)
+    openInspector()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy JSON' }))
+
+    await waitFor(() => {
+      expect(clipboardWrite).toHaveBeenCalledWith(
+        '{\n  "message": "API request and response payloads will appear here."\n}',
+      )
+      expect(screen.getByText('Copied JSON')).toBeInTheDocument()
+    })
+  })
+
+  it('shows fallback feedback when clipboard write fails', async () => {
+    const clipboardWrite = vi.fn().mockRejectedValue(new Error('permission denied'))
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: clipboardWrite,
+      },
+    })
+
+    render(<App />)
+    openInspector()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy JSON' }))
+
+    await waitFor(() => {
+      expect(clipboardWrite).toHaveBeenCalledTimes(1)
+      expect(screen.getByText('Copy failed')).toBeInTheDocument()
+    })
+  })
 })
