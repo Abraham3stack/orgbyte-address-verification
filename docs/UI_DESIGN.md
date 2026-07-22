@@ -57,6 +57,11 @@ Breakpoints:
 - Tablet: 768px to 1023px
 - Desktop: 1024px and up
 
+Deterministic tablet sub-breakpoints:
+
+- Tablet narrow: 768px to 895px
+- Tablet wide: 896px to 1023px
+
 Grid behavior:
 
 - Desktop: 12-column grid, content container max-width 1280px, side padding 32px
@@ -68,7 +73,10 @@ Panel stacking:
 - Desktop: two-column layout
   - Left 7 columns
   - Right 5 columns
-- Tablet: two columns if space allows, otherwise stacked with result above inspector
+- Tablet narrow (768px to 895px): strict single-column stack order: address form -> progress -> result -> inspector
+- Tablet wide (896px to 1023px): two-column layout
+  - Left 5 columns (address + progress)
+  - Right 3 columns (result + inspector)
 - Mobile: strict single-column order:
   - header
   - address form
@@ -79,8 +87,14 @@ Panel stacking:
 Sticky behavior:
 
 - Header remains sticky at top
-- On desktop/tablet, result panel may remain sticky within viewport after progress begins
-- On mobile, no sticky side panels
+- Result panel stickiness is enabled only on desktop (>=1024px)
+- Result panel sticky top offset is 88px (64px header height + 24px content gap)
+- Result panel stickiness activates only after a session has been initiated
+- Result panel stickiness is disabled when:
+  - viewport width is <=1023px
+  - viewport height is <720px
+  - active session state is FAILED and the user has not started a new session
+- On tablet and mobile, no sticky side panels
 
 ## 5) Header and Navigation Treatment
 
@@ -98,8 +112,15 @@ Exact labels:
 
 - Title: Address Verification Operations
 - Subtitle: Mock Verification Workflow
-- API badge label: API: http://localhost:4000
+- API badge label format: API: <configured-base-url>
 - Environment badge label: Environment: Local Mock
+
+API base URL source rule:
+
+- The API badge value must come from frontend environment configuration.
+- Use `VITE_API_BASE_URL` as the primary source.
+- If `VITE_API_BASE_URL` is undefined at runtime, fall back to `http://localhost:4000`.
+- `http://localhost:4000` is a development fallback example only and must not be hardcoded as the default displayed value when `VITE_API_BASE_URL` is present.
 
 Navigation constraints:
 
@@ -169,6 +190,19 @@ Progress UI elements:
 - Progress bar
 - Percent label
 - Poll cadence hint
+
+Progress percentage source and mapping rules:
+
+- Progress bar and percent label must use `data.progressPercent` from `GET /verify/status/{sessionId}` as the single source of truth.
+- Deterministic state mapping is:
+  - PENDING -> 25
+  - PROCESSING -> 65
+  - COMPLETED -> 100
+  - FAILED -> 100
+- Before first status response, progress bar value is 0 and percent label is hidden.
+- On PENDING and PROCESSING, animate width transitions between values.
+- On COMPLETED and FAILED, freeze at 100 with no further animation.
+- While polling is active, percent label must always match latest accepted status response for the active session.
 
 Exact supporting labels:
 
@@ -288,6 +322,37 @@ Loading states:
 - Status loading: retain previous status and show subtle loading indicator in panel header
 - Result loading: skeleton placeholders for verdict, confidence, checks, and issues
 
+Form and action behavior during active requests:
+
+- During initiation request (`POST /verify/initiate` in flight):
+  - Disable all form inputs.
+  - Disable `Reset Form`.
+  - Disable `Initiate Verification` and show `Initiating...`.
+- During active polling (non-terminal session):
+  - Keep all form inputs disabled.
+  - Disable `Reset Form`.
+  - Disable `Initiate Verification`.
+- After terminal state (COMPLETED or FAILED):
+  - Re-enable all form inputs.
+  - Re-enable `Reset Form`.
+  - Hide `Initiate Verification` and show `Start New Verification` as the primary action.
+
+Session overlap rule:
+
+- Overlapping sessions are not allowed.
+- A new session cannot be initiated while there is an active non-terminal session.
+- Exactly one `activeSessionId` is allowed in UI state when a session is active.
+
+Cancellation and stale-response invalidation rules:
+
+- Each initiated session creates a new `requestCycleId`.
+- Polling requests and result requests must be associated with the current `requestCycleId` and `activeSessionId`.
+- On `Reset Form` or `Start New Verification`:
+  - Immediately stop polling timers.
+  - Cancel in-flight status/result requests where cancellation is supported.
+  - Mark previous `requestCycleId` invalid.
+- Any late response whose `sessionId` or `requestCycleId` does not match current active values must be ignored and must not update UI.
+
 No-content jitter rule:
 
 - Preserve panel heights during loading to avoid layout shifts
@@ -325,6 +390,13 @@ Controls:
 
 - Copy JSON button
 - Clear Inspector button
+
+Inspector history persistence rules:
+
+- Inspector timeline history persists across `Reset Form`.
+- Inspector timeline history persists across `Start New Verification`.
+- `Last Request` and `Last Response` panels continue to show the most recent API pair until replaced by a newer call.
+- Only `Clear Inspector` removes timeline rows and clears `Last Request`/`Last Response` content.
 
 Exact labels:
 
@@ -498,15 +570,52 @@ Mobile:
 
 Tablet:
 
-- Two columns when width allows; otherwise stacked
-- Progress and result panels prioritized above inspector
+- 768px to 895px uses strict single-column stack: address form -> progress -> result -> inspector
+- 896px to 1023px uses two columns: left 5 columns, right 3 columns
+- In both tablet ranges, result appears before inspector in reading order
 
 Desktop:
 
 - Two-column dashboard with always-visible inspector panel
-- Sticky header and optional sticky result panel for long inspector output
+- Sticky header and sticky result panel using desktop-only sticky rules from Section 4
 
-## 19) Exact Content Hierarchy and Labels for Phase 6
+## 19) Workflow Actions and Data Reset Rules
+
+### Reset Form
+
+Availability:
+
+- Visible in form panel at all times.
+- Disabled while initiation request is in flight.
+- Disabled while polling is active for a non-terminal session.
+
+Behavior on click:
+
+- Clear all form field values to empty strings.
+- Clear all form validation errors and submit-level errors.
+- Clear current workflow state: `activeSessionId`, status badge, progress value, result panel content, and terminal banners.
+- Stop polling and invalidate stale responses using Section 10 rules.
+- Preserve inspector history and last request/response content.
+- Preserve header badges, including API base URL and environment badge.
+
+### Start New Verification
+
+Availability:
+
+- Primary action shown only when current session is terminal (`COMPLETED` or `FAILED`) or when a terminal error state is shown.
+
+Behavior on click:
+
+- Perform all `Reset Form` behavior.
+- Set primary action back to `Initiate Verification` idle state.
+- Focus `Address Line 1` input.
+
+Data clear/preserve matrix:
+
+- Clears: form values, validation messages, session metadata, progress panel state, result panel state, terminal/error banners, active polling handles.
+- Preserves: inspector timeline, last request payload, last response payload, API base URL badge value, environment badge value, design tokens/theme.
+
+## 20) Exact Content Hierarchy and Labels for Phase 6
 
 Top-level hierarchy:
 
@@ -518,6 +627,9 @@ Top-level hierarchy:
 
 Required labels and copy keys:
 
+- Address Verification Operations
+- Mock Verification Workflow
+- API: <configured-base-url>
 - Start Verification
 - Enter an address to initiate a verification session.
 - Address Line 1
@@ -556,7 +668,7 @@ Required labels and copy keys:
 - Clear Inspector
 - No API calls recorded yet.
 
-## 20) Implementation Readiness Checklist
+## 21) Implementation Readiness Checklist
 
 Phase 6 can begin when this document is approved and all are true:
 
