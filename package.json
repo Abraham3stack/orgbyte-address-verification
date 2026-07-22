@@ -1,0 +1,16 @@
+{
+  "name": "orgbyte-address-verification",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web",
+    "apps/mock-api"
+  ],
+  "scripts": {
+    "lint": "npm run -ws --if-present lint",
+    "typecheck": "npm run -ws --if-present typecheck",
+    "test": "npm run -ws --if-present test",
+    "build": "npm run -ws --if-present build",
+    "validate:openapi": "node scripts/validate-openapi.mjs"
+  }
+}
